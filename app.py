@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import pandas as pd
 import os
 import asyncio
 import aiohttp
@@ -321,7 +320,9 @@ async def root():
     return {
         "message": "Welcome to Ayursutra AI Assistant",
         "version": "1.0.0",
-        "endpoints": ["/chat", "/medicines/search", "/medicines/list", "/symptoms/analyze"]
+        "status": "running",
+        "ai_enabled": bool(google_api_key),
+        "endpoints": ["/chat", "/medicines/search", "/medicines/list", "/symptoms/analyze", "/medicines/categories"]
     }
 
 @app.post("/chat", response_model=ChatResponse)
