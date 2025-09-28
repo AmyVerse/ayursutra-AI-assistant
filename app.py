@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
 import asyncio
@@ -24,6 +26,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Initialize Google Gemini
 google_api_key = os.getenv("GOOGLE_API_KEY")
@@ -224,19 +229,26 @@ async def scrape_medicine_prices(medicine_name: str, max_results: int = 5) -> Li
 # LLM Integration
 async def get_ai_response(message: str, context: str = "") -> ChatResponse:
     """Get AI response using Google Gemini or fallback to rule-based system"""
+    print(f"🤖 Processing message: {message[:50]}...")
+    print(f"🔑 API Key available: {bool(google_api_key)}")
+    
     try:
         if google_api_key and model:
+            print("🚀 Using Google Gemini...")
+            
             # Prepare the prompt for Gemini
-            full_prompt = f"""
-{AYURVEDIC_KNOWLEDGE}
+            full_prompt = f"""You are an expert Ayurvedic health assistant. Provide helpful, personalized advice.
 
+User's concern: {message}
 Context: {context}
 
-User Query: {message}
+Please provide:
+1. A warm, helpful response addressing their specific concern
+2. Relevant Ayurvedic remedies and lifestyle suggestions
+3. Specific medicine recommendations if appropriate
+4. Always remind to consult qualified practitioners for serious conditions
 
-Please provide a helpful response about Ayurvedic treatment, remedies, and medicine suggestions. 
-Be informative but remind users to consult healthcare professionals for serious conditions.
-If suggesting medicines, mention specific Ayurvedic herbs or formulations.
+Keep response conversational, informative, and formatted with bullet points where helpful.
 """
             
             # Generate response using Gemini
@@ -246,6 +258,7 @@ If suggesting medicines, mention specific Ayurvedic herbs or formulations.
             )
             
             ai_response = response.text
+            print(f"✅ Got Gemini response: {ai_response[:100]}...")
             
             # Extract suggested medicines from response
             suggested_medicines = extract_medicine_suggestions(ai_response)
@@ -256,11 +269,12 @@ If suggesting medicines, mention specific Ayurvedic herbs or formulations.
                 confidence=0.9
             )
         else:
+            print("⚠️ No API key or model, using fallback...")
             # Fallback rule-based system
             return get_rule_based_response(message)
             
     except Exception as e:
-        print(f"AI response error: {e}")
+        print(f"❌ AI response error: {e}")
         return get_rule_based_response(message)
 
 def extract_medicine_suggestions(text: str) -> List[str]:
@@ -287,36 +301,54 @@ def get_rule_based_response(message: str) -> ChatResponse:
     message_lower = message.lower()
     
     # Common symptom responses
-    if any(word in message_lower for word in ['cold', 'cough', 'fever']):
+    if any(word in message_lower for word in ['cold', 'cough', 'fever', 'throat']):
         return ChatResponse(
-            response="For cold and cough, try these Ayurvedic remedies: 1) Warm water with honey and ginger 2) Tulsi tea 3) Turmeric milk. Consider medicines like Sitopaladi Churna or Taleesadi Churna.",
-            suggested_medicines=["Sitopaladi Churna", "Taleesadi Churna", "Tulsi"],
-            confidence=0.7
+            response="For cold and cough, try these Ayurvedic remedies:\n\n🌿 **Home Remedies:**\n• Warm water with honey and ginger\n• Tulsi tea 3 times daily\n• Turmeric milk before bed\n• Steam inhalation with eucalyptus\n\n💊 **Recommended Medicines:**\n• Sitopaladi Churna - 1 tsp with honey\n• Taleesadi Churna - for dry cough\n\n⚠️ Consult an Ayurvedic doctor if symptoms persist.",
+            suggested_medicines=["Sitopaladi Churna", "Taleesadi Churna", "Tulsi", "Honey"],
+            confidence=0.8
         )
     
-    elif any(word in message_lower for word in ['headache', 'migraine']):
+    elif any(word in message_lower for word in ['headache', 'migraine', 'head pain']):
         return ChatResponse(
-            response="For headaches, try: 1) Apply peppermint oil to temples 2) Drink ginger tea 3) Practice Pranayama. Godanti Mishran or Shirashooladi Vajra Ras may help.",
-            suggested_medicines=["Godanti Mishran", "Shirashooladi Vajra Ras"],
-            confidence=0.7
+            response="For headaches, try these Ayurvedic approaches:\n\n🌿 **Immediate Relief:**\n• Apply peppermint oil to temples\n• Drink ginger tea with lemon\n• Practice deep breathing (Pranayama)\n• Rest in a dark, quiet room\n\n💊 **Ayurvedic Medicines:**\n• Godanti Mishran - for chronic headaches\n• Shirashooladi Vajra Ras - for severe pain\n\n⚠️ If headaches are frequent, consult a doctor.",
+            suggested_medicines=["Godanti Mishran", "Shirashooladi Vajra Ras", "Ginger"],
+            confidence=0.8
         )
     
-    elif any(word in message_lower for word in ['digestion', 'stomach', 'acidity']):
+    elif any(word in message_lower for word in ['digestion', 'stomach', 'acidity', 'gas', 'bloating']):
         return ChatResponse(
-            response="For digestive issues: 1) Drink warm water with lemon 2) Chew fennel seeds after meals 3) Try Triphala before bed. Consider Avipattikar Churna or Hingvastak Churna.",
+            response="For digestive issues, here's what Ayurveda recommends:\n\n🌿 **Dietary Changes:**\n• Drink warm water with lemon in morning\n• Chew fennel seeds after meals\n• Avoid cold drinks with food\n• Eat meals at regular times\n\n💊 **Ayurvedic Medicines:**\n• Triphala - before bed for overall digestion\n• Avipattikar Churna - for acidity\n• Hingvastak Churna - for gas and bloating\n\n⚠️ Maintain regular eating schedule.",
             suggested_medicines=["Avipattikar Churna", "Hingvastak Churna", "Triphala"],
-            confidence=0.7
+            confidence=0.8
+        )
+    
+    elif any(word in message_lower for word in ['stress', 'anxiety', 'sleep', 'insomnia', 'tension']):
+        return ChatResponse(
+            response="For stress and sleep issues, Ayurveda suggests:\n\n🌿 **Lifestyle Changes:**\n• Practice meditation daily\n• Warm oil massage before bed\n• Avoid screens 1 hour before sleep\n• Drink chamomile or brahmi tea\n\n💊 **Ayurvedic Medicines:**\n• Ashwagandha - for stress relief\n• Brahmi - for mental clarity\n• Jatamansi - for better sleep\n\n⚠️ Maintain consistent sleep schedule.",
+            suggested_medicines=["Ashwagandha", "Brahmi", "Jatamansi"],
+            confidence=0.8
+        )
+    
+    elif any(word in message_lower for word in ['immunity', 'immune', 'weakness', 'energy', 'fatigue']):
+        return ChatResponse(
+            response="To boost immunity and energy naturally:\n\n🌿 **Daily Routine:**\n• Start day with warm water and honey\n• Include ginger, turmeric in diet\n• Get adequate sunlight\n• Practice yoga or light exercise\n\n💊 **Immunity Boosters:**\n• Chyavanprash - 1 tsp daily\n• Giloy tablets - natural immunity booster\n• Amla juice - high in Vitamin C\n\n⚠️ Maintain balanced diet and regular exercise.",
+            suggested_medicines=["Chyavanprash", "Giloy", "Amla", "Ashwagandha"],
+            confidence=0.8
         )
     
     else:
         return ChatResponse(
-            response="I'm here to help with Ayurvedic health guidance. Could you please describe your symptoms or health concerns more specifically? I can suggest appropriate remedies and medicines.",
-            suggested_medicines=None,
-            confidence=0.5
+            response="🙏 Namaste! I'm your Ayurvedic health assistant.\n\nI can help you with:\n• **Symptom guidance** - cold, headache, digestion, stress\n• **Medicine recommendations** - traditional Ayurvedic remedies\n• **Home remedies** - natural healing solutions\n• **Lifestyle advice** - based on Ayurvedic principles\n\nPlease tell me about your specific health concerns, and I'll provide personalized Ayurvedic guidance! 🌿",
+            suggested_medicines=["Triphala", "Ashwagandha", "Tulsi"],
+            confidence=0.6
         )
 # API Endpoints
 @app.get("/")
 async def root():
+    return FileResponse('static/index.html')
+
+@app.get("/api")
+async def api_info():
     return {
         "message": "Welcome to Ayursutra AI Assistant",
         "version": "1.0.0",
