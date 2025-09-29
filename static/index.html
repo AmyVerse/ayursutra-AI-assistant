@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Simple Chat Bot</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f4f4f4;
+      }
+      #chat-container {
+        width: 400px;
+        margin: 40px auto;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px #ccc;
+        padding: 20px;
+      }
+      #chat-box {
+        height: 300px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: #fafafa;
+      }
+      .message {
+        margin: 8px 0;
+      }
+      .user {
+        color: #0078d7;
+      }
+      .bot {
+        color: #333;
+      }
+      #input-form {
+        display: flex;
+      }
+      #user-input {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      #send-btn {
+        padding: 8px 16px;
+        margin-left: 8px;
+        border: none;
+        background: #0078d7;
+        color: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      #send-btn:hover {
+        background: #005fa3;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chat-container">
+      <div id="chat-box"></div>
+      <form id="input-form" autocomplete="off">
+        <input
+          type="text"
+          id="user-input"
+          placeholder="Type your message..."
+          required
+        />
+        <button type="submit" id="send-btn">Send</button>
+      </form>
+    </div>
+    <script>
+      const chatBox = document.getElementById("chat-box");
+      const inputForm = document.getElementById("input-form");
+      const userInput = document.getElementById("user-input");
+
+      function appendMessage(sender, text) {
+        const msg = document.createElement("div");
+        msg.className = "message " + sender;
+        msg.innerHTML = `<strong>${
+          sender === "user" ? "You" : "Bot"
+        }:</strong> ${text}`;
+        chatBox.appendChild(msg);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+
+      async function fetchBotReply(message) {
+        try {
+          const res = await fetch("/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message }),
+          });
+          if (!res.ok) {
+            throw new Error("API error: " + res.status);
+          }
+          const data = await res.json();
+          return data.response || "[No response]";
+        } catch (err) {
+          return "Error: " + err.message;
+        }
+      }
+
+      inputForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const userMsg = userInput.value.trim();
+        if (!userMsg) return;
+        appendMessage("user", userMsg);
+        userInput.value = "";
+        const reply = await fetchBotReply(userMsg);
+        appendMessage("bot", reply);
+      });
+    </script>
+  </body>
+</html>
